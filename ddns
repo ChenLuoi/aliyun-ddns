@@ -1,0 +1,74 @@
+#!/bin/bash
+
+# some variable to run directly
+#RR=test
+#DOMAIN=yourdomain.com
+#INTERVAL=3
+
+# builtin url list to get actual public ip
+urls=(
+  http://ip.sb
+  https://ifconfig.me
+  https://api.ip.sb/ip
+  https://api.ipify.org
+  http://ip.3322.net
+)
+
+# get public ip
+for url in "${urls[@]}"; do
+  current_ip=$(curl -s --connect-timeout 5 ${url})
+  if [[ $? = 0 ]]; then
+    echo "[$(date '+%F %T')] [${current_ip}] from ${url}"
+    break
+  fi
+done
+
+# search record with aliyun sdk
+result=$(aliyun alidns DescribeDomainRecords --DomainName ${DOMAIN} --SearchMode EXACT --Type A --KeyWord ${RR})
+if [[ ! $? -eq 0 ]]; then
+  echo "[$(date '+%F %T')] get records error"
+  exit 1
+fi
+
+result_count=$(echo ${result} | jq '.TotalCount')
+if [[ ${result_count} -eq 1 ]]; then
+  record=$(echo ${result} | jq ".DomainRecords.Record[0]")
+  # check if the ip is changed
+  previous_ip=$(echo ${record} | jq -r ".Value")
+  if [[ ${current_ip} != ${previous_ip} ]]; then
+    # update dns record with current ip
+    record_id=$(echo ${record} | jq -r '.RecordId')
+    aliyun alidns UpdateDomainRecord \
+      --RecordId ${record_id} \
+      --RR ${RR} \
+      --Type A \
+      --Value ${current_ip} \
+      --quiet
+    if [[ $? -eq 0 ]]; then
+      echo "[$(date '+%F %T')] ip changed from [${previous_ip}] to [${current_ip}]"
+    else
+      echo "[$(date '+%F %T')] failed to update dns record"
+      exit 1
+    fi
+  else
+    echo "[$(date "+%F %T")] ip keep [${previous_ip}], rerun after ${INTERVAL} min"
+  fi
+elif [[ ${result_count} -eq 0 ]]; then
+  # no dns record, add a new one
+  aliyun alidns AddDomainRecord \
+    --DomainName ${DOMAIN} \
+    --RR ${RR} \
+    --Type A \
+    --Value ${current_ip} \
+    --quiet
+  if [[ $? -eq 0 ]]; then
+    echo "[$(date '+%F %T')] no record find, add a new one [${current_ip}]"
+  else
+    echo "[$(date '+%F %T')] failed to add a new dns record"
+    exit 1
+  fi
+else
+  echo "[$(date "+%F %T")] there is more than one record!!"
+  exit 1
+fi
+exit 0
