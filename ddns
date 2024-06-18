@@ -4,6 +4,13 @@
 #RR=test
 #DOMAIN=yourdomain.com
 #INTERVAL=3
+function printLog() {
+  NOW=$(date +"%Y-%m-%d %H:%M:%S")
+  CONTENT="[${NOW}] $1"
+  echo "$CONTENT"
+}
+
+printLog "run ddns check"
 
 # builtin url list to get actual public ip
 urls=(
@@ -18,7 +25,7 @@ urls=(
 for url in "${urls[@]}"; do
   current_ip=$(curl -s --connect-timeout 5 ${url})
   if [[ $? = 0 ]]; then
-    echo "[$(date '+%F %T')] [${current_ip}] from ${url}"
+    printLog "[${current_ip}] from ${url}"
     break
   fi
 done
@@ -26,7 +33,7 @@ done
 # search record with aliyun sdk
 result=$(aliyun alidns DescribeDomainRecords --DomainName ${DOMAIN} --SearchMode EXACT --Type A --KeyWord ${RR})
 if [[ ! $? -eq 0 ]]; then
-  echo "[$(date '+%F %T')] get records error"
+  printLog "get records error"
   exit 1
 fi
 
@@ -45,13 +52,13 @@ if [[ ${result_count} -eq 1 ]]; then
       --Value ${current_ip} \
       --quiet
     if [[ $? -eq 0 ]]; then
-      echo "[$(date '+%F %T')] ip changed from [${previous_ip}] to [${current_ip}]"
+      printLog "ip changed from [${previous_ip}] to [${current_ip}]"
     else
-      echo "[$(date '+%F %T')] failed to update dns record"
+      printLog "failed to update dns record"
       exit 1
     fi
   else
-    echo "[$(date "+%F %T")] ip keep [${previous_ip}], rerun after ${INTERVAL} min"
+    printLog "ip keep [${previous_ip}], rerun after ${INTERVAL} min"
   fi
 elif [[ ${result_count} -eq 0 ]]; then
   # no dns record, add a new one
@@ -62,13 +69,13 @@ elif [[ ${result_count} -eq 0 ]]; then
     --Value ${current_ip} \
     --quiet
   if [[ $? -eq 0 ]]; then
-    echo "[$(date '+%F %T')] no record find, add a new one [${current_ip}]"
+    printLog "no record find, add a new one [${current_ip}]"
   else
-    echo "[$(date '+%F %T')] failed to add a new dns record"
+    printLog "failed to add a new dns record"
     exit 1
   fi
 else
-  echo "[$(date "+%F %T")] there is more than one record!!"
+  printLog "there is more than one record!!"
   exit 1
 fi
 exit 0

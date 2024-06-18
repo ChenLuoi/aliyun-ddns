@@ -31,7 +31,7 @@ docker pull chenluo/aliyun-ddns
 ```bash
 docker run \
     -it -d --restart=always \
-    -v /your_log_path:/log \
+    -v /your_log_file_path:/var/log/ddns.log \
     --env KEY_ID=your_access_key_id \
     --env KEY_SECRET=your_access_key_secret \
     --env RR=your_resource_record \
@@ -56,6 +56,6 @@ services:
       - DOMAIN=your_domain
       - INTERVAL=3
     volumes:
-      - /your_log_path:/log
+      - /your_log_file_path:/var/log/ddns.log
     tty: true
 ```
